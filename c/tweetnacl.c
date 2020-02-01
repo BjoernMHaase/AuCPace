@@ -1,3 +1,7 @@
+// Tweetnacl with Elligator2 and inverse X25519
+// 
+// Public domain.
+
 #include "tweetnacl.h"
 #define FOR(i,n) for (i = 0;i < n;++i)
 #define sv static void
