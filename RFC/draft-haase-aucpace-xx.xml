@@ -1189,13 +1189,20 @@ Salt value salt = X25519(Z,q):
 Concatenated input to scrypt as password parameter: 
 'passwordusername', length 16
 
+Salt value Z^q:
+0x77412819cad958e14d4a4c09c129456b90733fd13f337ffed6c0a30f7c3a9a50
 Password hash w from scrypt with N=1<<15, r=8, p=1
-f2b54e7325a1a4fdc88a7899cfe68aee41ebda4145ba93480bc295c84a0832d8
-
-Password verifier W = X25519(w)
+0xd832084ac895c20b4893ba4541daeb41ee8ae6cf99788ac8fda4a125734eb5f2
+Password verifier W = X25519(B,w)
 0x12511fcfc70fe9c3a8e72b347d7de52927fc253b83edc8271a5e90ecdf958f57
-
+Server private key x = 
+0x8b2389da423eb4f8979245d5b4527f92eacc1f3ad11581822d56498c44d4aba4
+Server Public key X = X25519(B,x)
+0x3e97ae1689d3b1c9fbd82e0cc036118f44279f58537a6b13b2db87e62682afd7
+Shared secret XW = X25519(W,x)
+0x3e97ae1689d3b1c9fbd82e0cc036118f44279f58537a6b13b2db87e62682afd7
 ###################### Password verifier/ #########################
+
     ]]></artwork></figure> 
 
      </section>  
