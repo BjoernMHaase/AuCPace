@@ -36,5 +36,6 @@ extern int AuCPace_Client_derive_w(char *w,
 extern int AuCPace_Client_derive_WX(char *XW,
    const char *w, const char *X);
 
+extern int AuCPace_derive_Ta_Tb_SK (char Ta[16], char Tb[16], char SK[64],const char *ISK);
 
 #endif

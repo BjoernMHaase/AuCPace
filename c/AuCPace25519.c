@@ -143,3 +143,30 @@ int AuCPace_Client_derive_WX(char *WX,
 }
 
 
+int AuCPace_derive_Ta_Tb_SK (char Ta[16], char Tb[16], char SK[64],const char *ISK)
+{
+    char *DSI3 = "AuCPace25-Ta";
+    char *DSI4 = "AuCPace25-Tb";
+    char *DSI5 = "AuCPace25519";
+    const int len_dsi = 12;
+    const int len_ISK = 64;
+    char hashResult[64];
+
+    char hashBuffer[len_dsi + 64];
+    int len_total = len_dsi + 64;
+
+    memcpy(hashBuffer,DSI3,len_dsi);
+    memcpy(&hashBuffer[len_dsi],ISK,len_ISK);
+    crypto_hash(hashResult,hashBuffer,len_total);
+    memcpy(Ta,&hashResult,16);
+
+    memcpy(hashBuffer,DSI4,len_dsi);
+    memcpy(&hashBuffer[len_dsi],ISK,len_ISK);
+    crypto_hash(hashResult,hashBuffer,len_total);
+    memcpy(Tb,&hashResult,16);
+
+    memcpy(hashBuffer,DSI5,len_dsi);
+    memcpy(&hashBuffer[len_dsi],ISK,len_ISK);
+    crypto_hash(SK,hashBuffer,len_total);
+}
+
