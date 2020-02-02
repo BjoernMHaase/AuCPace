@@ -1,3 +1,8 @@
+// Reference implementation and associated test code for CPace and AuCPace
+// Author Björn Haase
+//
+// Public Domain
+
 #include "tweetnacl.h"
 #include <stdio.h>
 #include <assert.h>
@@ -132,11 +137,21 @@ const uint8_t tc_ZQ[] = {
 
 void test_X25519()
 {
-    printf ("Testing X25519.\n");
+    printf ("Testing X25519 and strong AuCPace salt blinding.\n");
 
+    uint8_t result_Z[32];
     uint8_t result_U[32];
     uint8_t result_UQ[32];
     uint8_t result_ZQ[32];
+
+
+    map_to_group_mod_neg_StrongAuCPace25519(result_Z,
+      "username", 8, "password", 8);
+
+    if (0 == memcmp(result_Z,tc_Z,32))
+      printf ("PASS.\n");
+    else
+      printf ("FAIL.\n");
 
     crypto_scalarmult(result_U,tc_r,tc_Z);
     crypto_scalarmult(result_UQ,tc_q,tc_U);
@@ -265,7 +280,52 @@ void test_CPace()
          printLongInt (result_ISK,64);
          printf ("\nFAIL.\n");
     }
+}
 
+const uint8_t tc_w[] = {
+ 0xf2,0xb5,0x4e,0x73,0x25,0xa1,0xa4,0xfd,0xc8,0x8a,0x78,0x99,0xcf,0xe6,0x8a,0xee,0x41,0xeb,0xda,0x41,0x45,0xba,0x93,0x48,0xb,0xc2,0x95,0xc8,0x4a,0x8,0x32,0xd8,
+};
+const uint8_t tc_X[] = {
+ 0x8f,0x6b,0x81,0xee,0x23,0xd7,0x0,0xa0,0x78,0x3a,0xc1,0x6b,0xcc,0x3c,0xfb,0x62,0xf2,0xbc,0x7f,0xf8,0xda,0xed,0x28,0x59,0x77,0xa6,0x34,0xee,0x30,0xba,0x81,0x75,
+};
+const uint8_t tc_WX[] = {
+ 0xd7,0xaf,0x82,0x26,0xe6,0x87,0xdb,0xb2,0x13,0x6b,0x7a,0x53,0x58,0x9f,0x27,0x44,0x8f,0x11,0x36,0xc0,0xc,0x2e,0xd8,0xfb,0xc9,0xb1,0xd3,0x89,0x16,0xae,0x97,0x3e,
+};
+
+void test_AuCPace()
+{
+   uint8_t result_w[32];
+   uint8_t result_W[32];
+   uint8_t result_PRS[32];
+
+   AuCPace_Client_derive_w(result_w, 
+      "username", 8, "password", 8,
+      tc_ZQ, 32);
+
+   AuCPace_Client_derive_WX(result_PRS,
+      result_w, tc_X);
+
+   if (0 == memcmp(result_w,tc_w,32))
+      printf ("PASS.\n");
+   else
+   {
+         printf ("\nExpected result for w:\n");
+         printLongInt (tc_w,32);
+         printf ("\nOur result for w:\n");
+         printLongInt (result_w,32);
+         printf ("\nFAIL.\n");
+   }
+
+   if (0 == memcmp(result_PRS,tc_WX,32))
+      printf ("PASS.\n");
+   else
+   {
+         printf ("\nExpected result for WX:\n");
+         printLongInt (tc_WX,32);
+         printf ("\nOur result for WX:\n");
+         printLongInt (result_PRS,32);
+         printf ("\nFAIL.\n");
+   }
 }
 
 int main ()
@@ -275,5 +335,6 @@ int main ()
     testElligator2();
     test_X25519();
     test_CPace();
+    test_AuCPace();
 }
 

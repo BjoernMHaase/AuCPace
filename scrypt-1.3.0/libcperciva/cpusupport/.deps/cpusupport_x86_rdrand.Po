@@ -1,0 +1,12 @@
+libcperciva/cpusupport/cpusupport_x86_rdrand.o: \
+ libcperciva/cpusupport/cpusupport_x86_rdrand.c \
+ /usr/include/stdc-predef.h libcperciva/cpusupport/cpusupport.h \
+ cpusupport-config.h /usr/lib/gcc/x86_64-linux-gnu/9/include/cpuid.h
+
+/usr/include/stdc-predef.h:
+
+libcperciva/cpusupport/cpusupport.h:
+
+cpusupport-config.h:
+
+/usr/lib/gcc/x86_64-linux-gnu/9/include/cpuid.h:
