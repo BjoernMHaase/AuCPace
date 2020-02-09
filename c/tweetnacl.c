@@ -1036,7 +1036,7 @@ int crypto_inverse_scalarmult(u8 *q, const u8 *n, const u8 *p)
 		d[i] = a[i] = c[i] = 0;
 	}
 	a[0] = d[0] = 1;
-	for (i = 254; i >= 0; --i) {
+	for (i = 255; i >= 0; --i) {
 		r = (z[i >> 3] >> (i & 7)) & 1;
 		sel25519(a, b, (int)r);
 		sel25519(c, d, (int)r);
