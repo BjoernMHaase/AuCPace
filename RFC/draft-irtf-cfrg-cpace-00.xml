@@ -22,7 +22,7 @@
       <organization>DI, École Normale Supérieure, Paris</organization>
       <address>
 <!--         45, Rue d'Ulm, 75230 Paris, Cedex 05 -->
-        <email>bjoern.m.haase@web.de</email>
+        <email>michel.abdalla@ens.fr </email>
       </address>
     </author>
     <author fullname="Bjoern Haase" initials="B." surname="Haase">
@@ -41,7 +41,7 @@
       </address>
     </author>
     
-    <date month="February" year="2020"/>
+    <date month="July" year="2020"/>
     <abstract>
       <t>This document describes CPace which is a protocol for two
       parties that share a low-entropy secret (password) to derive a strong shared key without 
