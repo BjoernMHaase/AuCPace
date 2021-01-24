@@ -86,7 +86,7 @@
     <section anchor="definition" title="Definition  CPace ">
       <section title="Setup" anchor="setup">
         <t>Let C be a group in which there exists a subgroup of prime order p where 
-          the computational simultaneous Diffie-Hellman (SDH)
+          the strong computational simultaneous Diffie-Hellman (sSDH) and the strong Diffie-Hellman problem (sCDH)
           problem <xref target="VTBPEKE"/> is hard. C has order p*c where p is a large prime;
           c  will be called the cofactor. Let I be the unit element in
           C, e.g., the point at infinity in if C is an elliptic curve group. 
