@@ -203,7 +203,7 @@
 
         <t> With prepend_len(byte_sequence) we denote the byte sequence that is obtained from prepending
             the length of the byte sequence as an utf-8 to the byte sequence itself. (This will prepend one
-            single byte for sequences shorter than 128 bytes and more bytes otherwise)
+            single byte for sequences shorter than 128 bytes and more bytes otherwise) </t>
 
         <t> With CI we denote an OPTIONAL string containing information on the communication channel.
             If knowledge on the identies is known before protocol start for both parties,
@@ -1005,7 +1005,7 @@ Outputs and intermediate results:
 
 DSI11= 435061636532353531392d31 string (b'CPace25519-1') of len(12)
 PRS  = 0870617373776f7264 (b'\x08password') string of len(9)
-ZPAD = 107 zero bytes (before mixing in adversary controlled variable data)
+ZPAD = 107 zero bytes (before mixing in adversary controlled var. data)
 sid  = 7e4b4791d6a8ef019b936c79fb7f2c57 string of len(16)
 CI   = 0a41696e69746961746f720a42726573706f6e646572024144
        (b'\nAinitiator\nBresponder\x02AD') string of len(25)
