@@ -201,11 +201,19 @@
           or other names (hostnames, usernames, etc). We denote the parties' representation and the parties themselves both
           by using the identifiers A and B. </t>
 
-        <t> With CI we denote a string that SHALL be formed by the concatenation of the identifiers A and B and 
-            an an OPTIONAL associated data string. AD includes information which A and B might want to authenticate in the 
-            protocol execution. CI = A || B || AD; 
-  .
-            One first example of CI data is an encoding of the concatenation of IP addresses and port numbers of both parties.
+        <t> With prepend_len(byte_sequence) we denote the byte sequence that is obtained from prepending
+            the length of the byte sequence as an utf-8 to the byte sequence itself. (This will prepend one
+            single byte for sequences shorter than 128 bytes and more bytes otherwise)
+
+        <t> With CI we denote an OPTIONAL string containing information on the communication channel.
+            If knowledge on the identies is known before protocol start for both parties,
+            CI is RECOMMENDED to be formed by the concatenation of the identifiers A and B and 
+            an an OPTIONAL associated data string, each with prepended length. 
+            AD includes information which A and B might want to authenticate in the 
+            protocol execution. CI = prepend_len(A) || prepend_len(B) || prepend_len(AD);
+            
+            One other possibility for CI data might be an encoding of the concatenation of MAC-addresses 
+            of both communication partners.
 
             AD might include a list of supported protocol versions if CPace were
             used in a higher-level protocol which negotiates use of a particular version. Including
@@ -213,7 +221,8 @@
             and therefore prevent downgrade attacks. </t>
 
         <t> We also assume that A and B share a common encoding of a password related string PRS.
-          Typically PRS is a low-entropy secret such as a user-supplied password (pw) or a personal identification number.
+          Typically PRS is derived from a low-entropy secret such as a user-supplied password (pw) or a personal identification
+          by PRS = prepend_len(pw)
           Note that CPace is NOT RECOMMENDED to be used in conjunction with user datbases that include more than 
           one user account. CPace does not provide
           mechanisms for agreeing on user names, deriving salt values and agreeing on workload parameters, as required by the
@@ -888,25 +897,55 @@ s: 4b66e9d4d1b4673c5ad22691957d6af5c11b6421e0ea01d42ca4169e7918ba0d
 u: e5210f12786811d3f4b7959d0538ae2c31dbe7106fc03c3efc4cd549c715a413
 r: 95cbde9476e8907d7aade45cb4b873f88b595a68799fa152e6f8f7647aac7957
 
-Test vectors for X25519 with coordinates on J and J' that MUST all 
-yield the neutral element (0) independent of s:
+Out in the wild there might be two variants of X25519 which
+differ by clearing or not clearing bit #255 of inputs.
 
-s: a546e36bf0527c9d3b16154b82465edd62144c0ac1fc5a18506a2244ba449ac4
+Test vectors for plain X25519 that MUST return the neutral element 
+for X25519 implementations that don't clear bit #255 of inputs.
+u0: 0000000000000000000000000000000000000000000000000000000000000000
+u1: 0100000000000000000000000000000000000000000000000000000000000000
+u2: e0eb7a7c3b41b8ae1656e3faf19fc46ada098deb9c32b1fd866205165f49b800
+u3: 5f9c95bca3508c24b1d0b1559c83ef5b04445cc4581c8e86d8224eddd09f1157
+u4: ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f
+u5: edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f
+u6: eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f
+u7: cdeb7a7c3b41b8ae1656e3faf19fc46ada098deb9c32b1fd866205165f49b880
+u8: 4c9c95bca3508c24b1d0b1559c83ef5b04445cc4581c8e86d8224eddd09f11d7
+u9: d9ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ua: daffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ub: dbffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 
-u: 0000000000000000000000000000000000000000000000000000000000000000
-u: 0100000000000000000000000000000000000000000000000000000000000000
-u: e0eb7a7c3b41b8ae1656e3faf19fc46ada098deb9c32b1fd866205165f49b800
-u: 5f9c95bca3508c24b1d0b1559c83ef5b04445cc4581c8e86d8224eddd09f1157
-u: ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f
-u: edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f
-u: eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f
-u: cdeb7a7c3b41b8ae1656e3faf19fc46ada098deb9c32b1fd866205165f49b880
-u: 4c9c95bca3508c24b1d0b1559c83ef5b04445cc4581c8e86d8224eddd09f11d7
-u: d9ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-u: daffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-u: dbffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+Results for X25519 implementations *not* clearing bit #255:
+s = af46e36bf0527c9d3b16154b82465edd62144c0ac1fc5a18506a2244ba449aff
+rN = X25519(uX, s);
+r0: 0000000000000000000000000000000000000000000000000000000000000000
+r1: 0000000000000000000000000000000000000000000000000000000000000000
+r2: 0000000000000000000000000000000000000000000000000000000000000000
+r3: 0000000000000000000000000000000000000000000000000000000000000000
+r4: 0000000000000000000000000000000000000000000000000000000000000000
+r5: 0000000000000000000000000000000000000000000000000000000000000000
+r6: 0000000000000000000000000000000000000000000000000000000000000000
+r7: 0000000000000000000000000000000000000000000000000000000000000000
+r8: 0000000000000000000000000000000000000000000000000000000000000000
+r9: 0000000000000000000000000000000000000000000000000000000000000000
+ra: 0000000000000000000000000000000000000000000000000000000000000000
+rb: 0000000000000000000000000000000000000000000000000000000000000000
 
-r: 0000000000000000000000000000000000000000000000000000000000000000
+Results for X25519 implementations that *do* clear bit #255:
+s = af46e36bf0527c9d3b16154b82465edd62144c0ac1fc5a18506a2244ba449aff
+qN = X25519(uX & ((1 << 255) - 1),s);
+q0: 0000000000000000000000000000000000000000000000000000000000000000
+q1: 0000000000000000000000000000000000000000000000000000000000000000
+q2: 0000000000000000000000000000000000000000000000000000000000000000
+q3: 0000000000000000000000000000000000000000000000000000000000000000
+q4: 0000000000000000000000000000000000000000000000000000000000000000
+q5: 0000000000000000000000000000000000000000000000000000000000000000
+q6: 0000000000000000000000000000000000000000000000000000000000000000
+q7: e062dcd5376d58297be2618c7498f55baa07d7e03184e8aada20bca28888bf7a
+q8: 993c6ad11c4c29da9a56f7691fd0ff8d732e49de6250b6c2e80003ff4629a175
+q9: db64dafa9b8fdd136914e61461935fe92aa372cb056314e1231bc4ec12417456
+qa: d8e2c776bbacd510d09fd9278b7edcd25fc5ae9adfba3b6e040e8d3b71b21806
+qb: c85c655ebe8be44ba9c0ffde69f2fe10194458d137f09bbff725ce58803cdb38
 
 ########################### X25519/ ###############################
 
@@ -954,30 +993,31 @@ out: 390779123641965710057372702362153599533842156764537839663973068
 ###################### /Secret generator G #########################
 Inputs:
 DSI1 = 'CPace25519-1'
-PRS  = 'password'
 sid  = SHA512('sid'), bytes 0 to 15
+
+Input strings without prepended length:
+pw   = 'password'
 A    = 'Ainitiator'
 B    = 'Bresponder'
 AD   = 'AD'
 ####################################################################
 Outputs and intermediate results:
 
-DSI1 = 435061636532353531392d31 string ('CPace25519-1') of len(12)
-PRS  = 70617373776f7264 ('password') string of len(8)
-ZPAD = 1088 zero bytes (before mixing in variable data)
+DSI11= 435061636532353531392d31 string (b'CPace25519-1') of len(12)
+PRS  = 0870617373776f7264 (b'\x08password') string of len(9)
+ZPAD = 107 zero bytes (before mixing in adversary controlled variable data)
 sid  = 7e4b4791d6a8ef019b936c79fb7f2c57 string of len(16)
-CI   = 41696e69746961746f7242726573706f6e6465724144
-       ('AinitiatorBresponderAD') string of len(22)
+CI   = 0a41696e69746961746f720a42726573706f6e646572024144
+       (b'\nAinitiator\nBresponder\x02AD') string of len(25)
 
 u = SHA512(DSI1||PRS||ZPAD||sid||CI) as 512 bit little-endian int:
-  0xd00895f55108c0746da4aa584aa611714037149055a981076edac21a582be61a 
+  0xc2d3f2db868b7cde013b1b7d3b27c9cdf6845ec2eaf18ec6bffcf70f40e73349
   << 256
-+ 0x4409b1557780fc3738b8d7e51fe459659e5eead08948af5665a52beb84eac23f
++  0x491041def788da930a86b7dbfedbe016200c259d2d2a980dfde2238a3ea0a6c8
 u as reduced base field element coordinate:
-  0x254ff3bf7ecd8d7f7f2a2100348af035268bf83d4071d670da1dfbd49b6eeeb5
+  0x34864e74f03d6387394ccc72c6c3d4a8b7b2368c0d05c98e7d6ecfcde0f247ec
 Elligator2 output G as base field element coordinate:
-  0x41bfa27149d614f163d64dcb5b47da8991105a41065a5447fda1b7cf76e00ec4
- 
+  0xf0fdadcc2e334ceb73832be22e736a2a296dd46438f0541c1447dfbaf85ce1d 
   
 ###################### Secret generator G/ #########################
     ]]></artwork></figure> 
