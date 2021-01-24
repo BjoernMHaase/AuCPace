@@ -41,7 +41,7 @@
       </address>
     </author>
     
-    <date month="July" year="2020"/>
+    <date month="January" year="2021"/>
     <abstract>
       <t>This document describes CPace which is a protocol for two
       parties that share a low-entropy secret (password) to derive a strong shared key without 
