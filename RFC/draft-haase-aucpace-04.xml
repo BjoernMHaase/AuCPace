@@ -15,7 +15,7 @@
 ]>
 <?rfc toc="yes"?>
 <?rfc tocdepth="3"?>
-<rfc category="info" ipr="trust200902" docName="draft-haase-aucpace-03" submissionType="IETF">
+<rfc category="info" ipr="trust200902" docName="draft-haase-aucpace-04" submissionType="IETF">
   <front>
     <title>(strong) AuCPace, an augmented PAKE</title>
     <author fullname="Bjoern Haase" initials="B." surname="Haase">
@@ -25,7 +25,7 @@
         <email>bjoern.m.haase@web.de</email>
       </address>
     </author>
-    <date month="July" year="2021"/>
+    <date day="25" month="July" year="2021"/>
     <abstract>
       <t>This document describes AuCPace which is an augmented PAKE protocol for two
       parties. 
