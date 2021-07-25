@@ -1122,7 +1122,7 @@ def generate_ISK_CPace_P256(sid,K,Ya,Yb):
           <author initials="M." surname="Abdalla" />
           <author initials="B." surname="Haase" />
           <author initials="J." surname="Hesse" />
-          <date month="Jan." year="2021" />
+          <date month="January" year="2021" />
         </front>
         <annotation>eprint.iacr.org/2021/114
         </annotation>
