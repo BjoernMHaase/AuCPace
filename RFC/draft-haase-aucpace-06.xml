@@ -1,0 +1,1335 @@
+﻿<?xml version="1.0"?>
+<!DOCTYPE rfc SYSTEM "rfc2629.dtd" [
+<!ENTITY RFC2104 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.2104.xml">
+<!ENTITY RFC2119 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.2119.xml">
+<!ENTITY RFC4493 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.4493.xml">
+<!ENTITY RFC5480 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.5480.xml">
+<!ENTITY RFC5869 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.5869.xml">
+<!ENTITY RFC6234 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.6234.xml">
+<!ENTITY RFC7748 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.7748.xml">
+<!ENTITY RFC7914 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.7914.xml">
+<!ENTITY RFC8032 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.8032.xml">
+<!ENTITY RFC8174 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.8174.xml">
+<!ENTITY RFC8265 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.8265.xml">
+<!ENTITY uks SYSTEM "http://xml.resource.org/public/rfc/bibxml3/reference.I-D.ietf-mmusic-sdp-uks">
+]>
+<?rfc toc="yes"?>
+<?rfc tocdepth="3"?>
+<rfc category="info" ipr="trust200902" docName="draft-haase-aucpace-06" submissionType="IETF">
+  <front>
+    <title>(strong) AuCPace, an augmented PAKE</title>
+    <author fullname="Bjoern Haase" initials="B." surname="Haase">
+      <organization>Endress + Hauser Liquid Analysis</organization>
+      <address>
+<!--         Dieselstrasse 24, 70839 Gerlingen, Germany -->
+        <email>bjoern.m.haase@web.de</email>
+      </address>
+    </author>
+    <date day="24" month="July" year="2022"/>
+    <abstract>
+      <t>This document describes AuCPace which is an augmented PAKE protocol for two
+      parties. 
+      The protocol was tailored for constrained devices and smooth migration for compatibility
+      with legacy user credential databases. It is designed to be 
+      compatible with any group of both prime- and non-prime order 
+      and comes with  a security proof providing composability guarantees.
+     </t>
+    </abstract>
+  </front>
+  <middle>
+    <section anchor="intro" title="Introduction">
+      <t>This document describes AuCPace which is an augmented password-authenticated key-establishment (PAKE) 
+      protocol for two
+      parties.  Both sides the client B and the server A establish a high-entropy session key SK, based on 
+      a secret (password) which may be of low entropy for the client B and a password-verifier stored on the server.
+
+      The protocol is designed such that disclosing the secret to offline dictionary attacks is prevented. 
+      Upon server compromise (stealing A's database), the adversary must first succeed with a dictionary search 
+      for the clear-text password before being able to impersonate the client. </t>
+      <section anchor="selectionProcess" title="Outcome of the CFRG PAKE selection process">
+
+      <t> 
+      AuCPace was one of the two finalists of the CFRG PAKE selection process 
+      for the augmented pake protocol use-case in which ultimately OPAQUE was selected as general recommendation of 
+      the CFRG working group. 
+      OPAQUE and strong AuCPace share the security model and security guarantees but come with specific 
+      advantages and drawbacks.
+      </t>
+      <t> 
+       The key advantage of OPAQUE in comparison with AuCPace 
+      is that one communication round less than AuCPace is required, allowing for easier integration into TLS 1.3.
+      Applications where the number of communication round-trips are considered critical are encouraged to consider OPAQUE.
+      </t>
+      <t>        
+      The key advantages of AuCPace in comparison are much smaller password verifiers and the possibility to run AuCPace
+      in conjunction with legacy-style password dictionaries that store the conventional triples 
+      of (username, salt, password hash). Moreover AuCPace provides a certain level of resilience with respect to
+      adversaries with access to large-scale quantum computers ("quantum annoying property") which OPAQUE does not
+      provide.
+      </t>
+    </section>
+      <section anchor="objectives" title="Key design objectives for AuCPace ">
+      <t> 
+      The AuCPace protocol was specifically tailored for constrained server devices. As such, the computationally 
+      complex password
+      hash operation is refered to the clients.  AuCPace is also designed for enabling a 
+      smooth migration of legacy user credential databases. </t> 
+  <t> AuCPace is designed to be 
+      compatible with any group of both prime- and non-prime order 
+      and comes with  a security proof providing composability guarantees.
+      AuCPace uses CPace as a building block which is described in a separate
+      internet draft document.
+     </t>
+     <t> AuCPace moreover designed to provide flexibility and a smooth migration process 
+      for applications that today don't use a PAKE protocol for authentication but work with
+      conventional password verifier databases instead.
+     </t>
+
+    </section>
+
+    </section>
+    <section anchor="notation" title="Requirements Notation">
+      <t>The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL
+        NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED",
+        "MAY", and "OPTIONAL" in this document are to be interpreted as
+        described in BCP 14 <xref target="RFC2119" /> <xref target="RFC8174" />
+        when, and only when, they
+        appear in all capitals, as shown here.</t>
+    </section>
+    <section anchor="definition" title="Definitions for AuCPace ">
+      <section title="Setup" anchor="setup">
+        <t>Let C be a group in which there exists a subgroup of prime order p where 
+          the computational simultaneous Diffie-Hellman (SDH)
+          problem is hard. C has order p*c where p is a large prime;
+          c  will be called the cofactor. Let I be the unit element in
+          C, e.g., the point at infinity in if C is an elliptic curve group. 
+          We denote the operations in the group using addition and multiplication operators, e.g. P + (P + P) = P + 2 * P = 3 * P. 
+          We refer to a sequence of n additions of an element in P as scalar multiplication by n.
+          With B we denote a generator of the prime-order subgroup in C that we call the base point.
+        </t>
+
+       <t> 
+          With F we denote a field that may be associated with C, e.g. the prime base field used for representing the coordinates 
+          of points on an elliptic curve. </t>
+
+      <t>
+          We assume that for any element P in C there is a representation modulo negation, 
+          encode_group_element_mod_neg(P) as a byte string such 
+          that for any Q in C with Q != P and Q != -P, encode_group_element_mod_neg(P) != encode_group_element_mod_neg(Q). 
+          It is recommended that encodings of the elements P and -P share the same result string.
+
+          Common choices would be a fixed (per-group) length encoding 
+          of the x-coordinate of points on an
+          elliptic curve C or its twist C' in Weierstrass form, e.g. according to <xref target="IEEE1363"/> in case of
+          short Weierstrass form curves. 
+          For curves in Montgomery form correspondingly the 
+          u-coordinate would be encoded, as specified, e.g., by the encodeUCoordinate function from <xref target="RFC7748"/>.
+      </t>
+
+       <t> With J we denote the group modulo negation associated to C. Note that in J the scalar multiplication operation 
+           is well defined since scalar_multiply(P,s) == -scalar_multiply(-P,s) while arbitrary additions of group elements 
+           are no longer available. </t>
+
+       <t> 
+          With J' be denote a second group modulo negation that might share the byte-string encoding function
+          encode_group_element_mod_neg with J 
+          such for a given byte string 
+          either an element in J or J' is encoded. If the x-coordinate of an elliptic curve point group is used for the encoding,
+          J' would commonly be corresponding to the group of points on
+          the elliptic curve's quadratic twist. Correspondingly, with p' we denote the largest prime factor of the order 
+          of J' and its cofactor with c'. </t>
+
+       <t> Let scalar_cofactor_clearing(s) be a cofactor clearing function taking an integer input argument and 
+           returning an integer as result. 
+           For any s, scalar_cofactor_clearing(s) is REQUIRED to be of the form c * s1. I.e. 
+           it MUST return a multiple of the cofactor. An example of such a function may be the cofactor
+           clearing and clamping functions decodeScalar25519 and decodeScalar448 as used in the X25519 and X448 protocols 
+           definitions of <xref target="RFC7748"/>.
+           In case of prime-order groups with c == 1, it is RECOMMENDED to use the identity function 
+           with scalar_cofactor_clearing(s) = s.</t>
+        <t>
+          Let scalar_mult_cc(P,s) be a joint "scalar multiplication and cofactor clearing" function of an integer s and 
+          an string-encoded value P, where P could represent an element either on J or J'. If P is an element in J or J', 
+          the scalar_mult_cc function returns a string encoding of an element in J or J' respectively, such that the result of 
+          scalar_mult_cc(P,s) encodes (scalar_cofactor_clearing(s) * P).
+       </t>
+        <t> Let si = invert_scalar_mult_cc(P,s) be a function such that for any point Z in the prime-order subgroup of J,
+            invert_scalar_mult_cc(scalar_mult_cc(Q,s),s) == Q.
+            A typical implemention will involve calculating the inverse in the 
+            prime field mod p on the scalar generated by scalar_cofactor_clearing(s).
+        </t>
+
+        <t>
+          Let scalar_mult_ccv(P,s) be a "scalar multiplication cofactor clearing and verify" function of an integer s and an 
+          encoding of a group element P. Unlike scalar_mult_cc, scalar_mult_ccv additionally
+          carries out a verification that checks that the computational simultaneous Diffie-Hellman problem (SDH) is hard in the
+          subgroup (in J or J') generated by the encoded element SP = scalar_mult_cc(P,s).
+          In case that the verification fails (SP might be of low order or on the wrong curve), 
+          scalar_mult_ccv is REQUIRED to return the encoding of the identity element I.
+          Otherwise scalar_mult_ccv(P,S) is REQUIRED to return the result of scalar_mult_cc(P,s).
+ 
+          A common choice for scalar_mult_ccv for Montgomery curves with twist security would be the 
+          X25519 and X448 Diffie-Hellman functions as specified in <xref target="RFC7748"/>.
+          For curves in short Weierstrass form, scalar_mult_ccv could be implemented by the combination of a point verification
+          of the input point with a scalar multiplication. Here scalar_mult_ccv SHALL return the encoding of the neutral 
+          element I if the input point P was not on the curve C. 
+       </t>
+
+        <t>
+          Let P=map_to_group_mod_neg(r) be a mapping operation that maps a string r to an encoding 
+          of an element P in J. 
+          Common choices
+          would be the combination of map_to_base and map_to_curve methods as defined in 
+          the hash2curve draft <xref target="HASH2CURVE"/>.
+          Note that we don't require and RECOMMEND cofactor clearing here 
+          since this complexity is already included in the definition of the scalar multiplication operation calar_mult_cc above. 
+          Additionally requiring cofactor clearing also in map_to_group_mod_neg() would result in efficiency loss.</t>
+
+<!--        <t> Let l = CEIL_LOG2(p) denote the smallest integer such that 2^l >= p. </t> -->
+
+        <t>|| denotes concatenation of strings. We also let len(S) denote the
+          length of a string in bytes. Finally, let nil represent an empty string, i.e.,
+          len(nil) = 0.</t>
+
+        <t>[f,g,h] denotes alternatives where exactly one of the comma-separated options is to be chosen.</t>
+
+        <t> Let H(m) be a hash function from
+          arbitrary strings m to bit strings of a fixed length. Common choices
+          for H are SHA256 or SHA512 <xref target="RFC6234"/>. H is assumed to segment messages m into blocks m_i of byte length H_block.
+          E.g. the blocks used in SHA512 have a size of 128 bytes. </t>
+
+        <t> Let strip_sign_information(P) be function that takes a string encoding of an element P in J and strips any information
+            regarding the sign of P, such that strip_sign_information(P) = strip_sign_information(-P). 
+            For short Weierstrass (Montgomery) curves this function will return a string 
+            encoding the x-coordinate.
+            The purpose of defining this function is for allowing for x-coordinate only scalar multiplication algorithms. 
+            The sign is to be stripped before generating the intermediate session key ISK. </t>
+
+        <t> With ISK we denote the intermediate session key output string provided by CPace that is 
+            generated by a hash operation on the Diffie-Hellman result. </t>
+
+        <t>MAC(msg,key) is a message authentication code. Common examples are HMAC_SHA512, a block cipher based MAC
+           or a hash-function based tag. </t>
+
+        <t>AEAD(msg,key) is used for denoting an authenticated encryption scheme. A common example would be AES128GCM or Salsa20Poly1305. </t>
+
+        <t>KDF(Q) is a key-derivation function that takes a string and derives key of length L. Common choices for KDF are 
+           HMAC_SHA512. </t>
+
+        <t> With DSI we denote domain-separation identifier strings that may be prepended to the inputs of Hash and KDF functions.  </t> 
+
+         <t> Let IHF(salt, username, pw, sigma)  be an iterated 
+          hash function that takes a salt value, a user name and a password as input. IHF is designed to slow down 
+          brute-force attackers as controlled by a workload parameter set sigma. State of the art 
+          iterated hash functions are designed
+          for requiring a large amount of memory for its operation and will be referred to as memory-hard hash functions (MHF).
+          Scrypt <xref target="RFC7914"/> or Argon2
+          are common examples of a MHF primitive.</t>
+
+        <t> With PRS we denote a string that is a required input of the CPace subprotocol and generated by the AuCPace protocol.
+         </t>
+
+        <t>Let A and B be two parties. A and B may also have digital
+          representations of the parties' identities such as Media Access Control addresses
+          or other names (hostnames, usernames, etc). We denote the parties' representation and the parties themselves both
+          by using the identifiers A and B. </t>
+
+        <t> With CI we denote a string that is a required input of the CPace subprotocol. CI is generated together with PRS by the
+            AuCPace augmentation layer. 
+            CI SHALL be formed by the concatenation of the identifiers A and B and 
+            an associated data string AD, CI = A || B || AD;  </t>
+
+        <t> With uad we denote an optional string that is specifying user-associated data in a password file entry, 
+            such as authorization rights or permissions or account expiration dates.
+            Specification of this string is outside of the scope of the AuCPace protocol. 
+         </t>
+
+
+        <t>Let sid be a session id byte string chosen for each protocol session before protocol execution; 
+           The length len(sid) SHOULD be larger or equal to 16 bytes. </t>
+
+      </section>
+
+      </section>
+
+      <section title="Access to server-side password verifiers databases">
+         <t> AuCPace is an asymmetric PAKE protocol. I.e. while one party, the client B, is in possession of a clear-text password pw,
+             the other party, the server A, is not given access to the cleartext password but only to a password verifier. The
+             way how such a password verifier is maintained by a server party is essential for the AuCPace protocol construction. </t>
+
+      <section title="User credential database and password verifier types">
+           <t> 
+             With respect to the use of user credantial databases, AuCPace is flexible and supports 
+             three different database types.
+           </t>
+        <t> Firstly, the conventional approach as used for logins without a PAKE protocol is supported
+            (as used e.g. for the password over https:/ approach). 
+            Here the server stores 
+            a tuple of four elements in his password database file, (username, uad, salt, w) with 
+            w = IHF(salt, username, pw, sigma) ). With uad, we denote
+            user-accociated data such as permissions. The salt value is a nonce used for the IHF function.
+            Upon a login request, the user transmits the username and the clear-text password pw to the server. 
+            The server looks up the database,
+            retrieves the salt value, calculates the IHF function with the given inputs and compares the result with the
+            registered password verifier w. We refer to this setting as "legacy password verifier database" (LPVD) setting.
+        </t>
+        <t> Secondly, AuCPace supports an AuCPace password verifier database setting (APVD) setting. Here the database is already
+            adapted for use in conjunction with AuCPace. This setting differs from 
+            LPVD by the fact that instead of the direct output of the IHF, w = IHF(salt, username, pw, sigma), 
+            an AuCPace password verifier W
+            is maintained in the database. W is calculated from the legacy-style value w 
+            by W = scalar_mult_cc(B,w). It is possible to calculate W from a LPVD entry on the fly and without knowledge of
+            the clear-text password upon a remote login request. It is also easily possible to migrate 
+            the format of a LPVD database to an APVD database by calling the scalar multiplication function for each entry. 
+        </t>
+        <t> Thirdly, AuCPace supports the *strong* AuCPace password verifier database setting (sAPVD) setting, which differs from
+            APVD and LPVD by the fact that the salt entry in the database, as used for the IHF, 
+            is replaced by a salt-derivation parameter q, as 
+            will be detailed below.
+            With this strong AuCPace verifier type, the AuCPace protocol provides the additional security guarantee 
+            of pre-computation attack
+            resistance. Note that migrating LPVD or APVD database records to sAPVD entries is *not* possible, because calculating
+            the strong sAPVD password verifiers requires the clear-text passwords.
+        </t>
+         </section>
+
+         <section title="Encoding of passwords and user names">
+         <t> For AuCPace usernames and passwords are encoded as strings according to the definitions of 
+             <xref target="RFC8265"/>, i.e. case-preserving unicode encoding SHALL be employed. 
+         </t>
+         </section>
+
+         <section title="AuCPace database interface for retrieving password verifiers">
+         <t> In the course of the authentication protocoll, the AuCPace server implementation will need to interface to an 
+             user credential database for retrieving password verifiers. </t>
+         <t>
+            Database lookup is implemented by use of string-encoded user names.
+            AuCPace needs an interface equivalent to a function
+            pvr = lookup_pw_verifier_record(username). I.e. a lookup returns a password verfier record pvr, 
+            based on a username string. 
+            It is REQUIRED that for the purpose of pvr record lookup in databases and for the database contents,
+            the "case preservation" according to 
+            <xref target="RFC8265"/> is employed, both for the string encoding of the username and the
+            password.
+          </t>
+          <t> The content in the pvr records will depend on the application scenarios, LPVD, APVD and sAPVD as defined above.
+              Password verifier records pvr as returned from the database are REQUIRED to be composed of the 
+              following components.              
+              <list> 
+                 <t> A password verifier from either one of the following two options (w or W). 
+                     <list>  
+                        <t> LPVD case: A binary encoding of the actual password verifier that has been calculated as a function of the
+                            username, the password, a salt value by use of an iterated hash function 
+                            pv = w = IHF(username,password,salt, sigma).   
+                        </t>
+                        <t> APVD and sAPVD cases:
+                            An encoding of an element in J, W = scalarmult_cc(B,w), which has been calculated by
+                            a scalar multiplication using the base point B. The secret scalar, w, has been calculated 
+                            by an iterated hash function just as in the case above, w = IHF(username,password,salt, sigma).
+                         </t> 
+                     </list>
+                 </t>
+                 <t> sigma, a binary encoding specifying the type and the workload parametrization of the iterated hash function IHF that
+                     has been used for calculating w or W.
+                 </t>
+                 <t> A salt derivation entry which is either
+                     <list> 
+                         <t> LPVD and APVD cases: a binary string encoding of the salt value itself or, </t>
+                         <t> sAPVD case: an encoding of a secret scalar q for a group scalar multiplication such that
+                             the salt value used for calculating w or W could be calculated from the tuple 
+                             salt = strong_AuCPace_salt_derivation(q,username,password). </t>
+                     </list>
+                 </t>
+             </list> </t>
+             <t> In case that a database lookup on a server yields a legacy password database record 
+                 (LPVD case that includes an entry w), the AuCPace
+                 implementation SHALL convert this record into a AuCPace database record (APVD case) 
+                 by replacing w with W=scalarmult_cc(B,w).
+             </t>
+             <t> The AuCPace application protocol, thus, only needs to consider the two different APVD and sAPVD
+                 scenarios. In case of the APVD scenario, the salt value used for the IHF execution is returned by the database
+                 lookup, while in the sAPVD case the salt value is replaced by the secret scalar.</t>
+         </section>
+
+         <section title="Derivation of the salt value for strong AuCPace">
+             <t> For strong AuCPace the salt value used for the IHF is not explicitly included in the password verifier record pvr.
+                 Instead only the parameter q is stored. q serves for deriving the salt value.
+                 In order to determine the salt value, strong AuCPace uses  a function 
+                 salt = strong_AuCPace_salt_derivation(q,username,password). 
+                 This function implements the following sequence of operations. 
+                     <list> 
+                         <t> First Z, an element in J, is calculated by use of a Z = map_username_password_to_J(username || password).
+                             function, e.g. by use of a hash function such as SHA512 and a mapping such as Elligator2.</t>
+                         <t> The salt value is then determined by applying the scalar q and the group element Z to the
+                             scalar multiplication function, salt = strip_sign_information(scalarmult_cc(Z,q)). </t>
+                     </list>
+                  Deriving the salt value, thus, requires access to all of, username, clear text password and secret key q. If the
+                  database is stolen, an adversary is not able to derive the salt value without having access to the clear-text 
+                  password.
+             </t>
+             <t> Note that the method above which derives the salt directly from Z and q will typically only be used when creating a new
+                 password database entry. The AuCPace protocol uses a secret scalar r for, masking the value of Z. The
+                 approach exploits the relation q * Z == ((Z * r) * q) * (1/r). More explicitly the sequence is as follows:
+                 <list> 
+                   <t> The client, B, having access to the username and the clear-text password calculates Z. It aims at deriving
+                       the salt value. </t>
+                   <t> B samples a fresh scalar r and calculates U = scalarmult_cc(Z,r). B sends U to A. </t>
+                   <t> A fetches q from the database and calculates UQ = scalarmult_cc(U,q). A sends UQ back to A. </t>
+                   <t> B retrieves the salt by inverting the blinding with the scalar r using
+                       salt = strip_sign_information(invert_cofactor_cleared_scalar(UQ,r)). </t>
+                 </list> 
+             </t>
+         </section>
+
+         <section title="Specification of the workload parameter sigma">
+            <t>  AuCPace does not require the use of a specific iterated hash function IHF. 
+                 Still it is strongly RECOMMENDED to use AuCPace in conjunction with state-of-the 
+                 art memory-hard hash functions MHF with a secure workload parametrization. 
+                 The workload parameter sigma shall encode all of the following.
+                 <list> 
+                   <t> The algorithm family, such as Argon2i, scrypt or PBKDF2-HMAC-SHA256. </t>
+                   <t> The workload parameter specification, e.g. the iteration count for PBKDF2 or the parameters N,r and p of the
+                       scrypt algorithm. </t>
+                 </list>
+
+            </t>
+
+         </section>
+
+         <section title="Result of the database parameter lookup" anchor="lookup_result">
+            <t>  Summing up, the lookup process for user credential data for AuCPace SHALL provide
+                 all of the following information in the course of the session establishment protocol.
+                 <list> 
+                   <t> The iterated hash function specification sigma. </t>
+                   <t> A salt-derivation parameter and its type. The salt derivationn parameter is 
+                       either a salt scalar q or the salt value itself.
+                       Correspondingly the type of the salt-derivation parameter is either "AuCPace" or "strong AuCPace". </t>
+                   <t> An AuCPace password verifier W = scalarmult_cc(B,IHF(salt, username, pw, sigma)). </t>
+                 </list>
+            </t>
+            <t> For handling the case of failed lookups, if a given user name does not have an entry, the database shall define
+                a default parameter set sigma_default and a default salt-derivation parameter for password hashing. Moreover
+                and a secret string database_seed shall be chosen specifically for each distinct server A.
+                In case of failed lookups the following procedure SHALL be used. A random value w shall be sampled. The password
+                verifier W shall be calculated as W = map_to_group(w). The parameters q or salt shall be respectively calculated as 
+                [q,salt] = H(name || database_seed).
+            </t>
+         </section>
+      </section>
+
+      <section title="Authentication session" anchor="session">
+
+      <section title="Authentication Protocol Flow" anchor="flow">
+        <t>AuCPace is a protocol run between two parties, A and B, 
+           for establishing a shared secret key 
+           with explicit mutual authentication. AuCPace is implemented
+           by four messages as indicated by the numbers in the figure
+           below.
+
+           The roles of the two parties are different. Party B, the client,
+           is provided a user name and a password as input. Party A, the server,
+           has access to a user credentials database that stores password verifiers.
+
+           Both parties share a channel identifier string CI characterizing the
+           communication channel (e.g. information on IP addresses and port numbers
+           of both sides). </t>
+        <t> The channel identifier, CI, SHOULD include an encoding of the identities of both parties A and B if these are available
+            prior to starting the communication protocol.
+        </t> 
+        <t>
+           Both sides also share a common subsession ID (ssid) string.
+
+          ssid could be pre-established by a higher-level protocol 
+          invocing AuCPace. If no such ssid is available from a higher-level
+          protocol, a suitable approach is 
+          including ssid in the first message from B to A as shown 
+          in the figure below. </t>
+
+        <figure><artwork><![CDATA[
+                A                  B
+                |       ssid       |
+                |<1----------------| (sample ssid)
+
+       ---------- AuCPace protocol -----------
+ In: ssid       |                  | In: name, passw.
+                |     name,U       |     ssid
+                |<1----------------|     
+ DB lookup      |                  |
+                |[UQ,salt],X,sigma |                
+ det. CI,PRS    |----------------2>| det. CI,PRS
+       ---------------------------------------
+In: CI, PRS,   || (CPace substep)  || In: CI, PRS,
+    ssid       ||                  ||     ssid
+               ||        Ya        || 
+               ||----------------2>||
+               ||        Yb        || 
+  Output: ISK  ||<3----------------|| Output: ISK
+       ---------------------------------------
+     expl.auth. |        Tb        | expl.auth.
+                |<3----------------|
+                |        Ta        |
+                |----------------4>|
+     Output: SK |                  | Output: SK
+
+        ]]></artwork></figure>
+      </section>
+
+      <section title="AuCPace" anchor="aucpace">
+        <t> Both parties start with agreed values on the ssid string. The server side has access to a user credentials database.
+            The client side holds a user name, a clear-text password to be used for the authentication session.
+            Both sides share an encoding CI specifying the communication channel, such as IP addresses and port numbers.
+        </t>
+        <t> To begin, B calculates an element Z = map_username_password_to_J(username || password) in J.
+        </t>
+        <t> B then picks r randomly and uniformly according to the requirements for 
+            group J  scalars and calculates U = scalar_mult_cc(Z,r). 
+        </t> 
+        <t> B then sends (name,U) to A. </t>
+
+        <t> A then queries its database for the user name and retrieves the information as specified in 
+            section <xref target="lookup_result"/> , i.e. the set (W,sigma,salt-derivation parameter [q,salt]).
+            (Note that according to the specification of the database lookup, such a set is provided, even if there is no
+            database entry for the given user name.)
+        </t>
+        <t> A picks x randomly and uniformly according to the requirements for group J scalaras and calculates X = scalarmult_cc(B,x) and
+            WX = scalarmult_ccv(W,x). A MUST abort if WX is the neutral element (this indicates an 
+            error in the database contents).</t>
+
+        <t> A strips the sign information from WX to obtain WXs. A picks ya randomly and uniformly. A then calculates 
+            G = map_to_group_mod_neg(DSI1 || WXs || ZPAD || ssid || CI) and
+           Ya = scalar_mult_cc(G,ya). I.e. WXs takes over the role of CPace's PRS string.</t>
+
+        <t>  The following operations will variate, depending on the type of salt-derivation entry in the database.
+             <list> 
+             <t> If the salt derivation parameter is for strong AuCPace, A calculates UQ = scalarmult_cc(U,q) and sends 
+                 (UQ,X,sigma,Ya) to
+                 B. B then calculates salt as salt = strip_sign_information(inverse_scalarmult_cc(UQ,r)).</t>
+             <t> If the salt derivation parameter is for AuCPace, A sends (salt,X,sigma,Ya) to
+                 B.</t>
+            </list> </t>
+
+        <t> B then calculates w = IHF(salt, username, pw, sigma) and XW = scalarmult_ccv(X,w). B MUST abort, if XW is the neutral
+            element I.</t>
+ 
+        <t> B strips the sign information from XW to obtain XWs. B picks yb randomly and uniformly. 
+            B then calculates 
+            G = map_to_group_mod_neg(DSI1 || XWs || ZPAD || ssid || CI) and
+           Yb = scalar_mult_cc(G,yb). B then calculates K = scalar_mult_ccv(Ya,yb). 
+           B MUST abort if K is the encoding of the neutral element I.
+           Otherwise B sends Yb to A and proceeds as follows.
+
+           B strips the sign information from K, Ya and Yb  to obtain the strings Ks, Yas and Ybs by 
+           using the strip_sign_information() function.
+           B calculates ISK = H(DSI2 || ssid || Ks || Yas || Ybs).</t>
+
+        <t> B calculates Tb = MAC(ISK,DSI4) and Ta_v = MAC(ISK,DSI3) and sends (Yb,Tb) to A.</t>
+
+        <t> Upon reception of Yb, A calculates K = scalar_mult_ccv(Yb,ya). A MUST abort if K is the neutral element I.
+            If K is different from I, A strips the sign information from K, Ya and Yb and 
+            calculates ISK = H(DSI2 || ssid || Ks || Yas || Ybs). </t>
+
+       <t> A calculates Tb_v = MAC(ISK,DSI4) and Ta = MAC(ISK,DSI3). If the received authentication tag Tb did not
+           match the verification value Tb_v A MUST abort. Otherwise A sends Ta to B and returns the session key 
+           SK = KDF(DSI5 || ISK || ssid). </t>
+
+        <t>When B receives T_a it compares this to the verification value Ta_v. B MUST abort if Ta != Ta_v. Otherwise
+           B returns the session key SK = KDF(DSI5 || ISK || ssid). </t>
+
+        <t>Upon completion of this protocol, the session key SK returned by A and B will be identical by both
+           parties if and only if the supplied input parameters ssid and CI match on both sides and the password verifier
+           in the server database for the user was calculated from the clear-text password used by B.</t>
+      </section>
+
+    </section>
+
+
+      <section title="Authentication of transactions" anchor="passwordChange">
+        <t>The AuCPace protocol could also be used for interactive "transactions" that require
+           explicit authentication by use of a password. One example of such a transaction
+           is the request for change of the user's password verifier which involves two components.
+           Firstly, verification of the transaction with the old password and, secondly, the
+           transfer of a payload MT containing a new password verifier for the database.
+        </t>
+        <t>
+           Another example would be transactions that require special privileges and need
+           explicit password-based authentication (e.g. as in "sudo" commands on unix operating systems). 
+        </t>
+        <t>
+           The common feature of such transactions is the confidential transfer of a transaction 
+           payload MT from the client to the server and the authentication of the transaction based on
+           proven knowledge of a password. Upon sucessful authentication, the transaction as specified by MT is
+           processed and a response MR is generated. The server then transfers MR to the client by use of an AEAD scheme.
+        </t>
+
+      <section title="Transaction Protocol Flow" anchor="flowPasswordChange">
+        <t>
+           The protocol flow corresponds to the session key generation above with the difference that the
+           authenticator messages Ta and Tb are replaced by two transaction messages TMa and TMb.
+        </t>
+        <t>           
+           Before starting the protocol, the client has setup a transaction message MT.           
+        </t>
+        <t> As above, the channel identifier, CI, SHOULD include an encoding of the identities of both parties A and B if these are available
+            prior to starting the communication protocol.
+        </t> 
+        <t>
+           Both sides also share a common subsession ID (ssid) string.
+
+          ssid could be pre-established by a higher-level protocol 
+          invocing AuCPace. If no such ssid is available from a higher-level
+          protocol, a suitable approach is 
+          including ssid in the first message from B to A as shown 
+          in the figure below. </t>
+
+        <figure><artwork><![CDATA[
+                A                  B
+                |       ssid       |
+                |<1----------------| (sample ssid)
+
+       ---------- AuCPace protocol -----------
+ In: ssid       |                  | In: name, passw.
+                |     name,U       |     ssid, MT
+                |<1----------------|     
+ DB lookup      |                  |
+                |[UQ,salt],X,sigma |                
+ det. CI,PRS    |----------------2>| det. CI,PRS
+       ---------------------------------------
+In: CI, PRS,   || (CPace substep)  || In: CI, PRS,
+    ssid       ||                  ||     ssid
+               ||        Ya        || 
+               ||----------------2>||
+               ||        Yb        || 
+  Output: ISK  ||<3----------------|| Output: ISK
+       ---------------------------------------
+     expl.auth. |       TMb        | expl.auth.
+                |<3----------------| 
+    process TMb |       TMa        |
+                |----------------4>|
+                |                  | process TMa
+
+        ]]></artwork></figure>
+      </section>
+
+      <section title="AuCPace authenticated transactions" anchor="aucpaceTransaction">
+        <t>
+        The protocol flow is identical to the case of session key generation except for the fact that the authenticators Ta and Tb
+        are replaced by TMa and TMb.
+        TMa is generated by TMb = AEAD(MT,ISK), i.e. the payload MT is encrypted and authenticated by use of ISK.
+        If verification of the authentication tag of TMb succeeds on the server the transaction message is decrypted and
+        executed. E.g. upon a password change transaction message, the new password verifier would be written to the database of the server.
+        The result of the transaction execution is encoded in a response message MR and TMa is calculated as
+        TMa = AEAD(MR,ISK). The client authenticates TMa and returns the decrypted response message MR upon success.
+        </t>
+
+      </section>
+
+      </section>
+
+    <section title="Ciphersuites" anchor="Ciphersuites">
+        <t>
+            This section documents AuCPace ciphersuite configurations. A ciphersuite
+            is REQUIRED to specify all of, 
+             <list style="symbols">
+                   <t>a group modulo negation J with an associated encode_group_element_mod_neg function </t>
+                   <t>scalar_mult_cc(P,s) and scalar_mult_ccv(P,s) functions operating on encodings of 
+                      elements P in J 
+                   </t>
+                   <t> a mapping function map_to_group_mod_neg(r) converting byte strings r into elements in J </t> 
+                   <t> a strip_sign_information(Q) function operating on string representations of elements Q </t>
+                   <t> a hash function H for generating the intermediate session key ISK</t> 
+                   <t> A message authentication code MAC for authentication tag generation. </t> 
+                   <t> A key derivation function KDF for generating the final session key SK</t> 
+                   <t> and domain separation strings DSI1, DSI2, DSI3, DSI4, DSI5 </t>
+             </list>
+            </t>
+         <t>
+            Currently, detailed specifications are available for 
+            CPACE-X25519-ELLIGATOR2_SHA512-SHA512. 
+         </t>
+
+            <texttable anchor="cpace_ciphersuites" title="CPace Ciphersuites">
+                <ttcol align='center'>J</ttcol>
+                <ttcol align='center'>map_to_group_mod_neg</ttcol>
+                <ttcol align='center'>KDF</ttcol>
+ 
+                <!-- P256-SHA256-HKDF-HMAC -->
+                <c>X25519</c>
+                <c>ELLIGATOR2_SHA512 </c>
+                <c>SHA512 <xref target="RFC6234"/></c>
+
+                <!-- P256-SHA512-HKDF-HMAC 
+                <c>NIST P-256</c>
+                <c>SSWU_SHA256 <xref target="HASH2CURVE"/></c>
+                <c>SHA256 <xref target="RFC6234"/></c>
+-->
+            </texttable>
+
+
+
+<!--
+        <t>The following points represent permissible point generation seeds
+            for the groups listed in the Table <xref target="cpace_ciphersuites"/>,
+            using the algorithm presented in <xref target="pointgen"/>.
+            These bytestrings are compressed points as in <xref target="SEC1" />
+            for curves from <xref target="SEC1" />.</t>
+
+      <t>For P256:</t>
+
+      <figure><artwork><![CDATA[
+M =
+02886e2f97ace46e55ba9dd7242579f2993b64e16ef3dcab95afd497333d8fa12f
+seed: 1.2.840.10045.3.1.7 point generation seed (M)
+
+N =
+03d8bbd6c639c62937b04d997f38c3770719c629d7014d49a24b4f98baa1292b49
+seed: 1.2.840.10045.3.1.7 point generation seed (N)
+]]></artwork></figure>
+
+      <t>For P384:</t>
+
+      <figure><artwork><![CDATA[
+M =
+030ff0895ae5ebf6187080a82d82b42e2765e3b2f8749c7e05eba366434b363d3dc
+36f15314739074d2eb8613fceec2853
+seed: 1.3.132.0.34 point generation seed (M)
+
+N =
+02c72cf2e390853a1c1c4ad816a62fd15824f56078918f43f922ca21518f9c543bb
+252c5490214cf9aa3f0baab4b665c10
+seed: 1.3.132.0.34 point generation seed (N)
+]]></artwork></figure>
+
+      <t>For P521:</t>
+
+      <figure><artwork><![CDATA[
+M =
+02003f06f38131b2ba2600791e82488e8d20ab889af753a41806c5db18d37d85608
+cfae06b82e4a72cd744c719193562a653ea1f119eef9356907edc9b56979962d7aa
+seed: 1.3.132.0.35 point generation seed (M)
+
+N =
+0200c7924b9ec017f3094562894336a53c50167ba8c5963876880542bc669e494b25
+32d76c5b53dfb349fdf69154b9e0048c58a42e8ed04cef052a3bc349d95575cd25
+seed: 1.3.132.0.35 point generation seed (N)
+]]></artwork></figure>
+
+      <t>For edwards25519:</t>
+      <figure><artwork><![CDATA[
+M =
+d048032c6ea0b6d697ddc2e86bda85a33adac920f1bf18e1b0c6d166a5cecdaf
+seed: edwards25519 point generation seed (M)
+
+N =
+d3bfb518f44f3430f29d0c92af503865a1ed3281dc69b35dd868ba85f886c4ab
+seed: edwards25519 point generation seed (N)
+]]></artwork></figure>
+
+      <t>For edwards448:</t>
+      <figure><artwork><![CDATA[
+M =
+b6221038a775ecd007a4e4dde39fd76ae91d3cf0cc92be8f0c2fa6d6b66f9a12
+942f5a92646109152292464f3e63d354701c7848d9fc3b8880
+seed: edwards448 point generation seed (M)
+
+N =
+6034c65b66e4cd7a49b0edec3e3c9ccc4588afd8cf324e29f0a84a072531c4db
+f97ff9af195ed714a689251f08f8e06e2d1f24a0ffc0146600
+seed: edwards448 point generation seed (N)
+]]></artwork></figure>
+
+-->
+
+    <section title="CPACE-X25519-ELLIGATOR2_SHA512-SHA512">
+     <t>      
+      This cipher suite targets particularly constrained targets and implements specific optimizations.
+      It uses the group of points on the Montgomery curve Curve25519 for constructing J. The base field F is the 
+      prime field built upon the prime p = 2^255 - 19.
+      The Diffie-Hellmann protocol X25519 and the group are specified in <xref target="RFC7748"/>. 
+      The encode_group_element_mod_neg(P) is implemented by the encodeUCoordinate(P) function defined in <xref target="RFC7748"/>. 
+      The neutral element I is encoded as a 32 byte zero-filled string.
+
+     </t>
+     <t> The domain separation strings are defined as DSI1 = "CPace25519-1", DSI2 = "CPace25519-2", DSI3 = "AuCPace25-Ta", 
+         DSI4 = "AuCPace25-Tb", DSI5 = "AuCPace25519".  
+         (ASCII encoding without ANSI-C style trailing zeros). </t>
+
+     <t> Both, scalar_mult_cc and scalar_mult_ccv, are implemented by the X25519 function specified in <xref target="RFC7748"/>. </t>
+     <t> The secret scalars ya and yb used for X25519 shall be sampled as uniformly distributed 32 byte strings. </t>
+     <t> The QI = inverse_scalarmult_cc(Q,s) function is implemented as follows.
+         <list> 
+             <t> cs = scalar_cofactor_clearing(s) </t> 
+             <t> csi = 1 / (8 * cs) % p. </t> 
+             <t> QI = UNCLAMPED_X25519(Q, 8 * si). </t> 
+         </list>
+         Where the unclamped X25519 function ommits the setting of bit #254 in the scalar from <xref target="RFC7748"/>.
+     </t>
+
+     <t> The map_to_group_mod_neg function for the CPace substep 
+         is implemented as follows. First the byte length of the ZPAD zero-padding string is determined
+         such that len(ZPAD) = max(0, H_block_SHA512 - len(DSI1 || PRS)), with H_block_SHA512 = 128 bytes. 
+         Then a byte string u is calculated by use of u = SHA512(DSI1||PRS||ZPAD||sid||CI). The resulting string is interpreted
+         as 512-bit integer in little-endian format according to the definition of decodeLittleEndian() from <xref target="RFC7748"/>. 
+         The resulting integer is then reduced to the base field as input to the Elligator2 map specified in <xref target="HASH2CURVE"/>
+         to yield the secret generator G = Elligator2(u).
+     </t>
+
+     <t> The map_to_group_mod_neg function used for the strong AuCPace substep for calculating the field element Z 
+         is implemented accordingly. First the byte length of the ZPAD zero-padding string is determined
+         such that len(ZPAD) = max(0, H_block_SHA512 - len(DSI5 || password)), with H_block_SHA512 = 128 bytes. 
+         Then a byte string u is calculated by use of u = SHA512(DSI5||password||ZPAD||username). 
+         The resulting string is interpreted
+         as 512-bit integer in little-endian format according to the definition of decodeLittleEndian() from <xref target="RFC7748"/>. 
+         The resulting integer is then reduced to the base field as input to the Elligator2 map specified in <xref target="HASH2CURVE"/>
+         to yield the secret generator Z = Elligator2(u).
+     </t>
+
+     <t> AuCPace25519 calculates an intermediate session key ISK of 64 bytes length by a single invocation of SHA512(DSI2||ISK). 
+         Since the encoding does not incorporate the sign
+         from the very beginning Qs = strip_sign_information(Q) == Q for this cipher suite. </t>
+
+     <t> AuCPace25519 calculates authentication tags and session key SK from ISK of 64 bytes length by a single 
+         invocation of Ta = SHA512(DSI3||ISK),
+         Tb = SHA512(DSI4||ISK) and SK = SHA512(DSI5||ISK). 
+     </t>
+
+
+     <t> The following sage code could be used as reference implementation for the mapping and key derivation functions.
+
+      <figure><artwork><![CDATA[
+<CODE BEGINS>
+
+def littleEndianStringToInteger(k):
+    bytes = [ord(b) for b in k]
+    return sum((bytes[i] << (8 * i)) for i in range(len(bytes)))
+
+def map_to_group_mod_neg_CPace25519(sid, PRS, CI):
+    m = hashlib.sha512()
+    p = 2^255 - 19
+
+    H_block_SHA512 = 128
+    DSI1 = b"CPace25519-1"
+    ZPAD_len = max(0,H_block_SHA512 - len(CI) - len(PRS))
+    ZPAD = ZPAD_len * "\0"
+
+    m.update(DSI1)
+    m.update(PRS)
+    m.update(ZPAD)
+    m.update(sid) 
+    m.update(CI)
+    u = littleEndianStringToInteger(m.digest())
+    return map_to_curve_elligator2_curve25519(u % p)
+
+def map_to_group_mod_neg_StrongAuCPace25519(username, password):
+    # Map username and password to field element Z
+    DSI = b"AuCPace25519"
+    F = GF(2^255 - 19)
+    m = hashlib.sha512()
+    H_block_SHA512 = 128
+    ZPAD_len = max(0,H_block_SHA512 - len(DSI) - len(password))
+    ZPAD = ZPAD_len * "\0"
+    m.update(DSI)
+    m.update(password)
+    m.update(ZPAD)
+    m.update(username) 
+    u = littleEndianStringToInteger(m.digest())
+    u = F(u)
+    Z = map_to_curve_elligator2_curve25519(u)
+    return Z
+
+def Inverse_X25519(u_string,scalar_string):
+    OrderSubgroup = 2^252 + 27742317777372353535851937790883648493
+    SF = GF(OrderSubgroup)
+    coFactor = SF(8)
+    scalar = clampScalar25519(scalar_string)
+    inverse_scalar = 1 /  (SF(scalar) * coFactor)
+    inverse_scalar_shifted = Integer(inverse_scalar) * 8
+    return X25519(u_string,inverse_scalar_shifted,withClamping=0)
+
+def generate_ISK_CPace25519(sid,K,Ya,Yb):
+    m = hashlib.sha512(b"CPace25519-2") 
+    m.update(sid) 
+    m.update(K)
+    m.update(Ya)
+    m.update(Yb)
+    return m.digest()
+
+def MAC_SK_AuCPace25519(ISK):
+    DSI3 = b"AuCPace25-Ta"
+    DSI4 = b"AuCPace25-Tb"
+    DSI5 = b"AuCPace25519"
+    m = hashlib.sha512(DSI3)
+    m.update(ISK) 
+    Ta = m.digest()
+    Ta = Ta[:16]
+
+    m = hashlib.sha512(DSI4)
+    m.update(ISK) 
+    Tb = m.digest()
+    Tb = Tb[:16]
+
+    m = hashlib.sha512(DSI5)
+    m.update(ISK) 
+    SK = m.digest()
+
+    return (Ta,Tb,SK)
+
+<CODE ENDS>
+]]></artwork></figure>
+
+        Due to its use in Ed25519 <xref target="RFC8032"/>, SHA512 is considered to be the natural hash choice for Curve25519.
+        The 512 bit output of SHA512 moreover allows for removing any statistical bias stemming from the non-canonical base field
+        representations, such that the overhead of the HKDF_extract/HKDF_expand sequences from <xref target="HASH2CURVE"/> 
+        are considered not necessary (in line with the assessments regarding Curve25519 in <xref target="HASH2CURVE"/>).
+     </t>
+    </section>
+
+<!-- 
+    <section title="CPACE-P256-SSWU_SHA256-SHA256">
+
+     <t>      
+      This cipher suite targets applications that do not as agressively focus on efficiency, bandwidth and code size as the 
+      Curve25519 implementation. Instead it aims at reusing existing encoding and curve standards wherever possible. </t>
+ 
+    <t>
+      It uses the group of points on the NIST P-256 curve which is defined in short Weierstrass form 
+      for constructing J <xref target="RFC5480"/>. The base field F is the 
+      prime field built upon the Solinas prime p = 2^256-2^224+2^192+2^96-1.
+
+      Encoding of full group elements requires both, x and y coordinates. In order to facilitate point
+      validation and in order to be in line with recent TLS 1.3 requirements, implementations MUST encode 
+      both, x and y coordinates. It is RECOMMENDED to use the
+      uncompressed format from <xref target="SEC1"/> using the 0x04 octet prefix. The strip_sign_information() function
+      returns the substring from the SEC1 representation encoding the x-coordinate of the curve point.</t>
+      
+      <t> NIST P-256 is of prime order and does not require cofactor clearing. The scalar_cofactor_clearing function is the
+          identity function with scalar_cofactor_clearing(s) == s </t>
+
+     <t> The domain separation strings are defined as DSI1 = "CPace-P256-1", DSI2 = "CPace-P256-2", DSI3 = "AuCPace-Ta", DSI4 = "AuCPace-Tb", DSI5 = "AuCPace25519". </t>
+
+     <t> For the scalar_mult_cc function operating on the internally generated points, 
+         a conventional scalar multiplication on P-256 is used, i.e. without the need of further
+         verification checks.
+         The scalar_mult_ccv function that operates on remotely generated points includes the mandatory verification as follows. 
+         First from the encoded point
+         the x and y coordinates are decoded. These points are used for verifying the curve equation. If the point is not on the curve,
+         scalar_mult_ccv returns the neutral element I. If the point is on the curve, scalar_mult_ccv calls scalar_mult_cc and returns
+         the result of the scalar multiplication. </t>
+
+     <t> For the QI = inverse_scalar_mult_cc(Q,s) function first the inverse of s is calculated in the field modulo p, 
+         si = (1 / s) % p. Then QI = scalar_mult_ccv(QI,s). </t>
+
+     <t> For P-256, the map_to_group_mod_neg function is implemented as follows. The zero-padding string length is calculated as 
+         len(ZPAD) = max(0, H_block_SHA256 - len(DSI1 || PRS)) with H_block_SHA256 = 64.
+         For the mapping to the curve, first two 32 byte strings U1 and U2 are calculated with 
+         U1 = SHA256(DSI1 || PRS || ZPAD || sid || CI) and U2 = SHA256(U1). The concatenation of U1 and U2 is
+         interpreted as a 512 bit integer u by use of the u = OS2IP(U1 || U2) function from <xref target="HASH2CURVE"/>. 
+         This value is reduced to a 32 byte representation of a field element fu = u % p. The coordinates (x,y) in F  
+         of the secret generator G are calculated as (x,y) = map_to_curve_simple_swu_3mod4(u) function from <xref target="HASH2CURVE"/>. 
+     </t>
+
+     <t> As hash function H SHA256 is chosen, returning a session key ISK of 32 bytes length with 
+         ISK=SHA256(DSI2 || sid || Ks || Yas || Ybs). </t>
+
+     <t> The following sage code could be used as reference implementation for the mapping and key derivation functions.
+
+      <figure><artwork><![CDATA[
+<CODE BEGINS>
+
+def map_to_group_mod_neg_CPace_P256(sid, PRS, CI):
+    m = hashlib.sha256()
+
+    H_block_SHA256 = 64
+    DSI1 = b"CPace-P256-1"
+    ZPAD_len = max(0,H_block_SHA256 - len(CI) - len(PRS))
+    ZPAD = ZPAD_len * "\0"
+
+    m.update(DSI1)
+    m.update(PRS)
+    m.update(ZPAD)
+    m.update(sid) 
+    m.update(CI)
+    U1 = m.digest()
+    U2 = hashlib.sha256(U1).digest()
+    u = OS2I(U1 + U2)
+    return map_to_curve_simple_swu_3mod4(u)
+
+def generate_ISK_CPace_P256(sid,K,Ya,Yb):
+    m = hashlib.sha256(b"CPace-P256-2") 
+    m.update(sid) 
+    m.update(strip_sign_information(K))
+    m.update(strip_sign_information(Ya))
+    m.update(strip_sign_information(Yb))
+    return m.digest()
+
+<CODE ENDS>
+]]></artwork></figure>
+
+     </t>
+    </section> -->
+
+    </section>
+    <section title="Security Considerations">
+      <t>A security proof covering AuCPace is found in <xref
+          target="HL18" />.  </t>
+
+       <t>Elements received from a peer MUST be checked by a proper implementation of the scalar_mult_ccv method. 
+          Failure to properly validate group elements can lead to attacks. The Curve25519-based cipher suite employs
+          the twist security feature of the curve for point validation. 
+          As such, it is mandatory to check that all low-order points on both
+          the curve and the twist are
+          mapped on the neutral element by the X25519 function. Corresponding test vectors are provided in the 
+          appendix.</t>
+
+      <t>The choices of random numbers MUST be uniform. Randomly generated values (e.g., ya, r, q and yb)
+          MUST NOT be reused.</t>
+
+      <t>User credential database lookups for AuCPace might not be executed in non-constant time. In this
+         case, AuCPace does not provide full confidentiality with respect to hiding the presence or abscence
+         of a given user's entry in the database. The fact that in case of abscence of a record
+        random values are provided instead should be considered only a mitigation regarding user-enumeration attacks.</t>
+
+      <t>If AuCPace is used as a building block of higher-level protocols, it is RECOMMENDED that ssid
+         is generated by the higher-level protocol and passed to AuCPace. It is RECOMMENDED that ssid, 
+         is generated by sampling ephemeral random strings. </t>
+
+      <t>AuCPace generates the session key SK by a hash function operation on the intermediate session key ISK. 
+         If SK is possibly to be used for many different sub-protocols and purposes, such
+         as e.g. in TLS1.3, it is RECOMMENDED to apply SK to a stronger KDF function, such as HKDF from <xref target="RFC5869"/>.
+      </t>
+
+      <t>In case that side-channel attacks are to be considered practical for a given application, it is RECOMMENDED to focus
+         side-channel protections such as masking and redundant execution (faults) on the process of calculating
+         the secret generator G. The most critical aspect to consider is the processing of the first block of the hash that includes 
+         the PRS string. The CPace protocol construction considers the fact that side-channel protections of hash functions might 
+         be particularly resource hungry. For this reason, AuCPace aims at minimizing the number of hash functions invocations in the 
+         specified mapping method.</t>
+
+      <t>AuCPace is designed also for compatibility with legacy-style user-credential databases which directly store the 
+         output of iterated hash functions w = IHF(salt, username, pw, sigma). If AuCPace is used in this configuration, AuCPace
+         provides only the security guarantees of a balanced PAKE. I.e. in this case, user impersonation attacks become feasible
+         if the user credential database is stolen. It is RECOMMENDED to migrate legacy-style databases to an AuCPace format,
+         by replacing w with W = scalarmult_cc(B,w).</t>
+
+      <t>It is RECOMMENDED to use password verifiers for "strong AuCPace" on such a migrated database upon user password changes
+         in order to obtain pre-computation attack resistance. 
+      </t>
+      
+      <t>The Map2Point primitive used for (strong) AuCPace and for the CPace substep needs to be be probabilistically invertible
+         according to the definition of <xref target="CPaceAnalysis"/>. Use of Elligator2 (for Montgomery or Edwards curves) or 
+         simplified SWU <xref target="HASH2CURVE"/> (otherwise) is recommended for this purpose.
+         </t>
+
+      <t>AuCPace is proven secure under the hardness of the strong computational simultaneous Diffie-Hellmann (SDH) problem in the group J 
+         as defined in <xref target="CPaceAnalysis"/>. 
+         Still, even for the event that large-scale quantum computers (LSQC) will become available, AuCPace forces an active 
+         adversary to solve one instance of the CDH problem per password guess. 
+         Using the wording suggested by Steve Thomas on the CFRG mailing list,
+         AuCPace is "quantum-annoying".
+         </t>
+         <t> Strong AuCPace is pre-computation attack resistant under the CDH and the gap One-More-DH assumption, modelling the
+             hash2curve primitive as random oracle hashing to the group. 
+             If the map2point primitive used is probabilistically invertible, the analysis from           
+             <xref target="CPaceAnalysis"/> applies for instantiating the OPRF used in strong AuCPace 
+             also using single-coordinate Diffie-Hellman using X25519 and inverse X25519.
+         </t>
+         <t>    
+             While the
+             rest of the AuCPace protocol is quantum-annoying, solving a single discrete logarithm problem will reveal
+             the salt-derivation parameter q as used in strong AuCPace to the adversary. This will allow for pre-computing a 
+             rainbow table for
+             a given user name. I.e. the pre-computation attack resistance property will be lost and security guarantees 
+             of strong AuCPace and AuCPace would become equivalent.
+             (In order maintain strong AuCPace's pre-computation attack guarantees, a post-quantum instance
+             of an olibvious pseudo-random function (OPRF) would have to be found and used as replacement of the 
+             Diffie-Hellman OPRF construction employed by strong AuCPace.)
+         </t>
+
+    </section>
+    <section title="IANA Considerations">
+      <t>No IANA action is required.</t>
+    </section>
+    <section title="Acknowledgments">
+      <t> Thanks
+         to the members of the CFRG for
+        comments and advice.</t>
+    </section>
+  </middle>
+  <back>
+
+    <references title="Normative References">
+<!--      <reference anchor="SEC1">
+        <front>
+          <title>STANDARDS FOR EFFICIENT CRYPTOGRAPHY, "SEC 1: Elliptic Curve
+            Cryptography", version 2.0</title>
+          <author>
+            <organization>SEC</organization>
+          </author>
+          <date month="May" year="2009" />
+        </front>
+        <format type="PDF" target="http://www.sec.org/sec1-v2.pdf" />
+      </reference> -->
+<!--      &RFC2104; HMAC -->
+      &RFC2119;
+<!--      &RFC4493; AES CMAC -->
+<!--      &RFC5480; -->
+      &RFC5869;
+      &RFC6234;
+      &RFC7748;
+      &RFC7914;
+      &RFC8032;
+      &RFC8174;
+ 
+      <reference anchor="HASH2CURVE">
+        <front>
+          <title> draft-irtf-cfrg-hash-to-curve-05 </title>
+          <author initials="A." surname="Faz-Hernandez" />
+          <author initials="S." surname="Scott" />
+          <author initials="N." surname="Sullivan" />
+          <author initials="R." surname="Wahby" />
+          <author initials="C." surname="Wood" />
+          <date year="2019" />
+        </front>
+        <annotation>IRTF draft standard
+        </annotation>
+      </reference>
+
+      <reference anchor="IEEE1363">
+        <front>
+          <title>"Standard Specifications for Public Key Cryptography", IEEE 1363</title>
+         <author initials="" surname="IEEE" />
+           <date year="2000" />
+        </front>
+        <annotation>IEEE 1363
+        </annotation>
+      </reference>
+
+    </references>
+    <references title="Informative References">
+      <reference anchor="HL18">
+        <front>
+          <title>AuCPace. PAKE protocol tailored for the use in the internet of things.</title>
+          <author initials="B." surname="Haase" />
+          <author initials="B." surname="Labrique" />
+          <date month="Feb" year="2018" />
+        </front>
+        <annotation>eprint.iacr.org/2018/286
+        </annotation>
+      </reference>
+
+      <reference anchor="CPaceAnalysis">
+        <front>
+          <title>Security analysis of CPace.</title>
+          <author initials="M." surname="Abdalla" />
+          <author initials="B." surname="Haase" />
+          <author initials="J." surname="Hesse" />
+          <date month="January" year="2021" />
+        </front>
+        <annotation>eprint.iacr.org/2021/114
+        </annotation>
+      </reference>
+
+
+<!--
+      <reference anchor="VTBPEKE">
+        <front>
+          <title> 
+             VTBPEKE: Verifier-based Two-Basis Password ExponentialKey Exchange
+          </title>
+          <author initials="D." surname="Pointcheval" />
+          <author initials="G." surname="Wang" />
+          <date year="2017" />
+        </front>
+        <annotation>Proceedings of the 2017 {ACM} on Asia Conference on Computer and Communications
+               Security, AsiaCCS 2017
+        </annotation>
+      </reference>
+
+
+      <reference anchor="TDH">
+        <front>
+          <title>The Twin-Diffie Hellman Problem and Applications</title>
+          <author initials="D." surname="Cash" />
+          <author initials="E." surname="Kiltz" />
+          <author initials="V." surname="Shoup" />
+          <date year="2008" />
+        </front>
+        <annotation>EUROCRYPT 2008.  Volume 4965 of Lecture notes in Computer
+          Science, pages 127-145.  Springer-Verlag, Berlin, Germany.
+        </annotation>
+      </reference> -->
+
+     &RFC8265; <!-- Einheitliche Usernamen und Strings für Passworte -->
+    </references>
+
+<!--
+    <section anchor="pointgen" title="Algorithm used for Point Generation">
+      <t>This section describes the algorithm that was used to generate
+      the points (M) and (N) in the table in <xref target="Ciphersuites"/>.</t>
+
+
+      <t>The following python snippet generates the above points,
+      assuming an elliptic curve implementation following the
+      interface of Edwards25519Point.stdbase() and
+      Edwards448Point.stdbase() in Appendix A of <xref target="RFC8032" />:</t>
+
+      <figure><artwork><![CDATA[
+def iterated_hash(seed, n):
+    h = seed
+    for i in range(n):
+        h = hashlib.sha256(h).digest()
+    return h
+
+def bighash(seed, start, sz):
+    n = -(-sz // 32)
+    hashes = [iterated_hash(seed, i) for i in range(start, start + n)]
+    return b''.join(hashes)[:sz]
+
+def canon_pointstr(ecname, s):
+    if ecname == 'edwards25519':
+        return s
+    elif ecname == 'edwards448':
+        return s[:-1] + bytes([s[-1] & 0x80])
+    else:
+        return bytes([(s[0] & 1) | 2]) + s[1:]
+
+def gen_point(seed, ecname, ec):
+    for i in range(1, 1000):
+        hval = bighash(seed, i, len(ec.encode()))
+        pointstr = canon_pointstr(ecname, hval)
+        try:
+            p = ec.decode(pointstr)
+            if p != ec.zero_elem() and p * p.l() == ec.zero_elem():
+                return pointstr, i
+        except Exception:
+            pass
+]]></artwork></figure>
+    </section>
+
+    <section anchor="testvectors" title="Test Vectors">
+      <t>This section contains test vectors for CPace using 
+        the X25519-ELLIGATOR2_SHA512-SHA512 and P-256-SHA256-HKDF_SHA256 ciphersuites. 
+        All points are 
+        encoded using the compressed format, while the y coordinate information is not used
+        for deriving the session key. 
+
+        prefix, specified in <xref target="SEC1"/> A and B identity strings
+        are provided in the protocol invocation.
+      </t>
+-->
+
+     <section title="AuCPace25519 Test Vectors">
+       <t> </t>
+
+     <section title="Inverse X25519 test vectors">
+
+        <figure><artwork><![CDATA[
+######################## /inverse X25519 ##########################
+
+Z : 
+0x5d7189be6192ffccdb80902ac26c5d38592822a761c7268007200a232a4cd841
+r (random scalar input for X25519): 
+0xe8a70b556490ecdbd52c2927464d4eff557807496af234fc496c9f4221bd4423
+U = X25519(Z,r): 
+0x3e6377b3410a60d0ca65190963ad6dce3aeae178aafad369dc2a59c59acc3ceb
+IU = inverse_X25519(U)
+0x5d7189be6192ffccdb80902ac26c5d38592822a761c7268007200a232a4cd841
+
+Z : 
+0x73583bc520f4b9e1245e29b92e6b12dc1c8bc0d9b018a1e2626875db2774974
+r (random scalar input for X25519): 
+0xe22cb510bd45fc6cbcb929353777925d152c2a9a5b924715d7480aad8b64d447
+U = X25519(Z,r): 
+0x545040a9ac1cc13a627dddc0ab4ef0b9128d54476aa98727bd45a86ea2d6de24
+IU = inverse_X25519(U)
+0x73583bc520f4b9e1245e29b92e6b12dc1c8bc0d9b018a1e2626875db2774974
+
+######################## inverse X25519/ ##########################
+
+    ]]></artwork></figure> 
+
+     </section>  
+     <section title="Strong AuCPace25519 salt test vectors">
+
+        <figure><artwork><![CDATA[
+
+############ /salt derivation for strong AuCPace ##################
+
+DSI5 = 417543506163653235353139 string ('AuCPace25519') of len(12)
+pw   = 70617373776f7264 ('password') string of len(8)
+ZPAD = 108 zero bytes
+name = 757365726e616d65 ('username') string of len(8)
+u = SHA512(DSI||password||ZPAD||username) as 512 bit int:
+ 0xfec497749d249426e4895e05d0bb4f565aa4423f33d19e6b20aa3837eb77d16e
+ <<256
+ + 0xb8f5b1b51c1557c088356d7ca09bd78f259f1d5f4041d466f4edd40f041a0bb3
+
+u as reduced base field element coordinate:
+  0xa242d046f835586749962599c699e609a00f2c0f15f584dce322c5bf7e327be
+
+Z = Elligator2(u) as base field element coordinate:
+  0x3c01681e4c6d4a43b527c789bcf6046b53ac14c516dfbbbb0f8916826b537f4b
+
+salt-derivation parameter q:
+0xf40546b4544bae5fcc564dc917407ee02300312c8fd558a0b37f48322277962e
+
+ZQ = X25519(Z,q):
+0x77412819cad958e14d4a4c09c129456b90733fd13f337ffed6c0a30f7c3a9a50
+
+
+Blinding scalar r:
+0x1698d57693a684a957ae0492bade0dfd6a261dfa2bb4a74c6b0b8b84acf082a8
+U = X25519(Z,r):
+0xaf2a058fbd974a6122f8316323060d808705701971666121477eba97386a977
+UQ = X25519(U,q):
+0x610270daff540b5b7adec057e0f8fa1bfe7687649d95f65560a77a2be70e6cb5
+ZQ = inverse_X25519(Z,r)
+0x77412819cad958e14d4a4c09c129456b90733fd13f337ffed6c0a30f7c3a9a50
+
+############ salt derivation for strong AuCPace/ ##################
+
+    ]]></artwork></figure> 
+
+     </section>  
+     <section title="Test vectors for AuCPace password verifier">  
+
+        <figure><artwork><![CDATA[
+###################### /Password verifier #########################
+Inputs:
+
+Password: 'password', length 8
+User Name: 'username', length 8
+
+Z for username, password:
+0x3c01681e4c6d4a43b527c789bcf6046b53ac14c516dfbbbb0f8916826b537f4b
+q:
+0xf40546b4544bae5fcc564dc917407ee02300312c8fd558a0b37f48322277962e
+
+Salt value salt = X25519(Z,q):
+0x77412819cad958e14d4a4c09c129456b90733fd13f337ffed6c0a30f7c3a9a50
+
+####################################################################
+
+Concatenated input to scrypt as password parameter: 
+'passwordusername', length 16
+
+Salt value Z^q:
+0x77412819cad958e14d4a4c09c129456b90733fd13f337ffed6c0a30f7c3a9a50
+Password hash w from scrypt with N=1<<15, r=8, p=1
+0xd832084ac895c20b4893ba4541daeb41ee8ae6cf99788ac8fda4a125734eb5f2
+Password verifier W = X25519(B,w)
+0x12511fcfc70fe9c3a8e72b347d7de52927fc253b83edc8271a5e90ecdf958f57
+Server private key x = 
+0x8b2389da423eb4f8979245d5b4527f92eacc1f3ad11581822d56498c44d4aba4
+Server Public key X = X25519(B,x)
+0x3e97ae1689d3b1c9fbd82e0cc036118f44279f58537a6b13b2db87e62682afd7
+Shared secret XW = X25519(W,x)
+0x3e97ae1689d3b1c9fbd82e0cc036118f44279f58537a6b13b2db87e62682afd7
+###################### Password verifier/ #########################
+
+    ]]></artwork></figure> 
+
+     </section>  
+     </section>  
+
+  </back>
+</rfc>
